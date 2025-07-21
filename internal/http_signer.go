@@ -99,6 +99,7 @@ func (signer ociRequestSigner) getSigningHeaders(r *http.Request) []string {
 
 func (signer ociRequestSigner) getSigningString(request *http.Request) string {
 	signingHeaders := signer.getSigningHeaders(request)
+
 	signingParts := make([]string, len(signingHeaders))
 	for i, part := range signingHeaders {
 		var value string
@@ -110,6 +111,7 @@ func (signer ociRequestSigner) getSigningString(request *http.Request) string {
 			value = request.URL.Host
 			if len(value) == 0 {
 				value = request.Host
+			} else {
 			}
 		default:
 			value = request.Header.Get(part)
@@ -229,6 +231,7 @@ func (signer ociRequestSigner) computeSignature(request *http.Request) (signatur
 // the request will have the proper 'Authorization' header set, otherwise
 // and error is returned.
 func (signer ociRequestSigner) Sign(request *http.Request) (err error) {
+
 	if signer.ShouldHashBody(request) {
 		err = calculateHashOfBody(request)
 		if err != nil {

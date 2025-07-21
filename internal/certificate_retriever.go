@@ -151,7 +151,7 @@ func (r *urlBasedX509CertificateRetriever) PrivateKey() *rsa.PrivateKey {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 
-	//Nil Private keys are supported as part of a certificate
+	// Nil Private keys are supported as part of a certificate
 	if r.privateKey == nil {
 		return nil
 	}

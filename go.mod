@@ -1,3 +1,3 @@
-module github.com/zalbiraw/ociinstanceprincipalauth
+module github.com/zalbiraw/ociauth
 
 go 1.19

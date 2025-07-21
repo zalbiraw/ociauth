@@ -33,7 +33,7 @@ func httpGet(dispatcher HTTPRequestDispatcher, url string) (body bytes.Buffer, s
 	// 	}
 	// })
 
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if _, err = body.ReadFrom(response.Body); err != nil {
 		return
 	}

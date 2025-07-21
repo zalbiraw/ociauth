@@ -1,4 +1,4 @@
-// Package ociinstanceprincipalauth is a Traefik plugin that adds Oracle Cloud Infrastructure (OCI)
+// Package ociauth is a Traefik plugin that adds Oracle Cloud Infrastructure (OCI)
 // Instance Principal authentication to HTTP requests.
 //
 // The plugin adds OCI signature authentication headers to requests, allowing them to authenticate
@@ -10,8 +10,8 @@
 // - Automatic signature generation for OCI API requests
 // - Thread-safe credential management
 // - Comprehensive error handling and logging
-// - No configuration required - works automatically on OCI compute instances
-package ociinstanceprincipalauth
+// - Configurable authentication type
+package ociauth
 
 import (
 	"context"
@@ -20,43 +20,86 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/zalbiraw/ociinstanceprincipalauth/internal"
+	"github.com/zalbiraw/ociauth/internal"
 )
 
 // Config represents the configuration for the OCI Instance Principal Auth plugin.
-// This plugin requires no configuration as it automatically detects OCI compute instances
-// and uses Instance Principal authentication.
 type Config struct {
-	// No configuration fields needed - Instance Principal authentication works automatically
+	// AuthType specifies the OCI authentication method to use.
+	// Currently only "instance_principal" is supported.
+	AuthType string `json:"authType,omitempty" yaml:"authType,omitempty"`
+	
+	// ServiceName specifies the OCI service to authenticate against.
+	// Currently only "generativeai" is supported.
+	ServiceName string `json:"serviceName,omitempty" yaml:"serviceName,omitempty"`
+	
+	// Region specifies the OCI region for the service endpoint.
+	// Example: "us-chicago-1", "us-ashburn-1", "eu-frankfurt-1"
+	Region string `json:"region,omitempty" yaml:"region,omitempty"`
 }
 
 // AuthPlugin represents the main plugin instance that handles OCI authentication.
 type AuthPlugin struct {
-	next   http.Handler   // Next handler in the middleware chain
-	name   string         // Plugin instance name
-	client *http.Client   // HTTP client for OCI metadata service
+	next        http.Handler // Next handler in the middleware chain
+	name        string       // Plugin instance name
+	client      *http.Client // HTTP client for OCI metadata service
+	serviceName string       // OCI service name
+	region      string       // OCI region
 }
 
 // New creates a new OCI Instance Principal Auth plugin instance.
-// No configuration validation is needed as the plugin works automatically.
+// Validates the auth type configuration and sets defaults if needed.
 //
 // Parameters:
 //   - ctx: Context for the plugin initialization
 //   - next: Next HTTP handler in the middleware chain
-//   - cfg: Plugin configuration (not used)
+//   - cfg: Plugin configuration
 //   - name: Name of the plugin instance
 //
 // Returns the configured plugin handler.
 func New(ctx context.Context, next http.Handler, cfg *Config, name string) (http.Handler, error) {
-	log.Printf("Initializing OCI Instance Principal Auth plugin %s", name)
+	// Set default auth type if not specified
+	if cfg.AuthType == "" {
+		cfg.AuthType = "instance_principal"
+	}
+
+	// Validate auth type
+	if cfg.AuthType != "instance_principal" {
+		return nil, fmt.Errorf("unsupported auth type '%s', only 'instance_principal' is supported", cfg.AuthType)
+	}
+
+	// Set default service name if not specified
+	if cfg.ServiceName == "" {
+		cfg.ServiceName = "generativeai"
+	}
+
+	// Validate service name
+	if cfg.ServiceName != "generativeai" {
+		return nil, fmt.Errorf("unsupported service name '%s', only 'generativeai' is supported", cfg.ServiceName)
+	}
+
+	// Validate region is required
+	if cfg.Region == "" {
+		return nil, fmt.Errorf("region is required")
+	}
+
+	log.Printf("Initializing OCI Instance Principal Auth plugin %s with auth type: %s, service: %s, region: %s", 
+		name, cfg.AuthType, cfg.ServiceName, cfg.Region)
 
 	return &AuthPlugin{
-		next: next,
-		name: name,
+		next:        next,
+		name:        name,
+		serviceName: cfg.ServiceName,
+		region:      cfg.Region,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
 	}, nil
+}
+
+// generateOCIHost generates the OCI service endpoint host based on service name and region.
+func (a *AuthPlugin) generateOCIHost() string {
+	return fmt.Sprintf("%s.%s.oci.oraclecloud.com", a.serviceName, a.region)
 }
 
 // ServeHTTP implements the http.Handler interface and adds OCI authentication to requests.
@@ -71,70 +114,41 @@ func New(ctx context.Context, next http.Handler, cfg *Config, name string) (http
 //
 // For requests without authentication requirements, they are passed through unchanged.
 func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	log.Printf("[%s] === OCI AUTH REQUEST START ===", a.name)
-	log.Printf("[%s] Processing request: %s %s", a.name, req.Method, req.URL.Path)
-	log.Printf("[%s] Request Host: %s", a.name, req.Host)
+	log.Printf("[%s] Processing request: %s %s", a.name, req.Method, req.URL.String())
 
-	// Check if this is an OCI API request (requests to *.oci.oraclecloud.com)
-	if !a.isOCIRequest(req) {
-		log.Printf("[%s] Not an OCI request, passing through without authentication", a.name)
-		a.next.ServeHTTP(rw, req)
-		log.Printf("[%s] === OCI AUTH REQUEST END (passthrough) ===", a.name)
-		return
-	}
-
-	log.Printf("[%s] OCI request detected, adding authentication", a.name)
+	// Set OCI service host for consistent signature calculation
+	ociHost := a.generateOCIHost()
+	req.URL.Host = ociHost
+	req.Host = ociHost
+	req.Header.Set("Host", ociHost)
+	log.Printf("[%s] Set OCI host to: %s", a.name, ociHost)
 
 	// Set required headers for OCI signature if not already present
 	if req.Header.Get("Date") == "" {
 		req.Header.Set("Date", time.Now().Format(time.RFC1123))
-		log.Printf("[%s] Added Date header", a.name)
 	}
 
 	if req.Header.Get("Content-Type") == "" && (req.Method == "POST" || req.Method == "PUT" || req.Method == "PATCH") {
 		req.Header.Set("Content-Type", "application/json")
-		log.Printf("[%s] Added Content-Type header", a.name)
 	}
+
+	// This is essential because the OCI signature includes the content-length header
+	if req.ContentLength >= 0 {
+		req.Header.Set("Content-Length", fmt.Sprintf("%d", req.ContentLength))
+	}
+
 
 	// Add OCI authentication headers
-	log.Printf("[%s] Signing request with OCI Instance Principal authentication", a.name)
 	if err := a.signRequest(req); err != nil {
-		log.Printf("[%s] Authentication error: %v", a.name, err)
+		log.Printf("[%s] OCI auth failed: %v", err)
 		http.Error(rw, fmt.Sprintf("OCI authentication failed: %v", err), http.StatusInternalServerError)
-		log.Printf("[%s] === OCI AUTH REQUEST END (error) ===", a.name)
 		return
 	}
-	log.Printf("[%s] Request signed successfully", a.name)
 
-	// Log the authentication headers that were added
-	log.Printf("[%s] Authentication headers added:", a.name)
-	log.Printf("  Date: %s", req.Header.Get("Date"))
-	log.Printf("  Content-Type: %s", req.Header.Get("Content-Type"))
-	log.Printf("  Content-Length: %s", req.Header.Get("Content-Length"))
-	log.Printf("  X-Content-SHA256: %s", req.Header.Get("X-Content-SHA256"))
-	log.Printf("  Authorization: %s", req.Header.Get("Authorization"))
+	log.Printf("[%s] OCI authentication successful", a.name)
 
 	// Forward the authenticated request
-	log.Printf("[%s] Forwarding authenticated request", a.name)
 	a.next.ServeHTTP(rw, req)
-
-	log.Printf("[%s] === OCI AUTH REQUEST END (success) ===", a.name)
-}
-
-// isOCIRequest determines if a request is destined for an OCI service.
-// It checks if the host ends with ".oci.oraclecloud.com" which is the standard
-// pattern for OCI service endpoints.
-func (a *AuthPlugin) isOCIRequest(req *http.Request) bool {
-	host := req.Host
-	if host == "" {
-		host = req.URL.Host
-	}
-
-	// Check if it's an OCI service endpoint
-	isOCI := len(host) > 18 && host[len(host)-18:] == ".oci.oraclecloud.com"
-
-	log.Printf("[%s] Host check: %s -> OCI request: %v", a.name, host, isOCI)
-	return isOCI
 }
 
 // signRequest adds OCI authentication headers to the given HTTP request.
@@ -144,6 +158,7 @@ func (a *AuthPlugin) signRequest(req *http.Request) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("authentication panic recovered: %v", r)
+			log.Printf("[%s] Panic during authentication: %v", a.name, r)
 		}
 	}()
 
@@ -153,19 +168,25 @@ func (a *AuthPlugin) signRequest(req *http.Request) (err error) {
 
 	keyProvider, err := internal.NewInstancePrincipalKeyProvider(nil)
 	if err != nil {
+		log.Printf("[%s] Failed to create key provider: %v", a.name, err)
 		return fmt.Errorf("failed to create key provider: %w", err)
 	}
 
 	if keyProvider == nil {
+		log.Printf("[%s] Key provider is nil", a.name)
 		return fmt.Errorf("key provider is nil")
 	}
 
+
 	signer := internal.DefaultRequestSigner(keyProvider)
 	if signer == nil {
+		log.Printf("[%s] Signer is nil", a.name)
 		return fmt.Errorf("signer is nil")
 	}
 
+
 	if err := signer.Sign(req); err != nil {
+		log.Printf("[%s] Failed to sign request: %v", a.name, err)
 		return fmt.Errorf("failed to sign request: %w", err)
 	}
 
@@ -175,5 +196,9 @@ func (a *AuthPlugin) signRequest(req *http.Request) (err error) {
 // CreateConfig creates the default plugin configuration.
 // This function is required by Traefik's plugin system.
 func CreateConfig() *Config {
-	return &Config{}
+	return &Config{
+		AuthType:    "instance_principal",
+		ServiceName: "generativeai",
+		Region:      "", // Must be provided by user
+	}
 }

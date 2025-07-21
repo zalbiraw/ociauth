@@ -1,4 +1,6 @@
 displayName: OCI Instance Principal Auth
 type: middleware
-import: github.com/zalbiraw/ociinstanceprincipalauth
+import: github.com/zalbiraw/ociauth
 summary: This plugin provides OCI Instance Principal authentication for Oracle Cloud Infrastructure services. No configuration required.
+testData:
+  authType: "instance_principal"

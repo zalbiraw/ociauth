@@ -61,6 +61,26 @@ linters:
     - gomnd
     - forbidigo
     - varnamelen
+    - funlen
+    - gocritic
+    - nonamedreturns
+    - gocyclo
+    - godot
+    - errorlint
+    - forcetypeassert
+    - gochecknoglobals
+    - ireturn
+    - nilerr
+    - staticcheck
+    - gofumpt
+    - gosec
+    - misspell
+    - nakedret
+    - revive
+    - unparam
+    - unused
+    - whitespace
+    - stylecheck
 
 issues:
   exclude-use-default: false

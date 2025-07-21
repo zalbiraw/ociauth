@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -59,7 +58,7 @@ const (
 	defaultScheme    = "https"
 	defaultSDKMarker = "Oracle-GoSDK"
 
-	defaultUserAgentTemplate = "%s/%s (%s/%s; go/%s)" //SDK/SDKVersion (OS/OSVersion; Lang/LangVersion)
+	defaultUserAgentTemplate = "%s/%s (%s/%s; go/%s)" // SDK/SDKVersion (OS/OSVersion; Lang/LangVersion)
 	// http.Client.Timeout includes Dial, TLSHandshake, Request, Response header and body
 	defaultTimeout = 60 * time.Second
 
@@ -84,7 +83,7 @@ const (
 	// ociDefaultClientCertsPrivateKeyPath is the env var for the path to the custom client cert private key
 	ociDefaultClientCertsPrivateKeyPath = "OCI_DEFAULT_CLIENT_CERTS_PRIVATE_KEY_PATH"
 
-	//maxAttemptsForRefreshableRetry is the number of retry when 401 happened on a refreshable auth type
+	// maxAttemptsForRefreshableRetry is the number of retry when 401 happened on a refreshable auth type
 	maxAttemptsForRefreshableRetry = 3
 
 	// defaultRefreshIntervalForCustomCerts is the default refresh interval in minutes
@@ -109,22 +108,22 @@ type HTTPRequestDispatcher interface {
 
 // BaseClient struct implements all basic operations to call oci web services.
 type BaseClient struct {
-	//HTTPClient performs the http network operations
+	// HTTPClient performs the http network operations
 	HTTPClient HTTPRequestDispatcher
 
-	//Signer performs auth operation
+	// Signer performs auth operation
 	Signer HTTPRequestSigner
 
-	//A request interceptor can be used to customize the request before signing and dispatching
+	// A request interceptor can be used to customize the request before signing and dispatching
 	Interceptor RequestInterceptor
 
-	//The host of the service
+	// The host of the service
 	Host string
 
-	//The user agent
+	// The user agent
 	UserAgent string
 
-	//Base path for all operations of this client
+	// Base path for all operations of this client
 	BasePath string
 }
 
@@ -433,18 +432,18 @@ func (client BaseClient) CallWithDetails(ctx context.Context, request *http.Requ
 	if err != nil {
 		return
 	}
-	//Intercept
+	// Intercept
 	err = client.intercept(request)
 	if err != nil {
 		return
 	}
-	//Sign the request
+	// Sign the request
 	err = details.Signer.Sign(request)
 	if err != nil {
 		return
 	}
 
-	//Execute the http request
+	// Execute the http request
 	// if ociGoBreaker := client.Configuration.CircuitBreaker; ociGoBreaker != nil {
 	// 	resp, cbErr := ociGoBreaker.Cb.Execute(func() (interface{}, error) {
 	// 		return client.httpDo(request)
@@ -490,18 +489,18 @@ func (client BaseClient) IsRefreshableAuthType() bool {
 
 func (client BaseClient) httpDo(request *http.Request) (response *http.Response, err error) {
 
-	//Copy request body and save for logging
-	dumpRequestBody := ioutil.NopCloser(bytes.NewBuffer(nil))
+	// Copy request body and save for logging
+	dumpRequestBody := io.NopCloser(bytes.NewBuffer(nil))
 	if request.Body != nil && !checkBodyLengthExceedLimit(request.ContentLength) {
 		if dumpRequestBody, request.Body, err = drainBody(request.Body); err != nil {
-			dumpRequestBody = ioutil.NopCloser(bytes.NewBuffer(nil))
+			dumpRequestBody = io.NopCloser(bytes.NewBuffer(nil))
 		}
 	}
 	// IfDebug(func() {
 	// 	logRequest(request, Debugf, verboseLogging)
 	// })
 
-	//Execute the http request
+	// Execute the http request
 	response, err = client.HTTPClient.Do(request)
 
 	if err != nil {
@@ -521,7 +520,7 @@ func CloseBodyIfValid(httpResponse *http.Response) {
 		if httpResponse.Header != nil && strings.ToLower(httpResponse.Header.Get("content-type")) == "text/event-stream" {
 			return
 		}
-		httpResponse.Body.Close()
+		_ = httpResponse.Body.Close()
 	}
 }
 

@@ -394,11 +394,11 @@ func (c *x509FederationClient) createSimpleHTTPRequest(request *x509FederationRe
 }
 
 func (c *x509FederationClient) sanitizeCertificateString(certString string) string {
-	certString = strings.Replace(certString, "-----BEGIN CERTIFICATE-----", "", -1)
-	certString = strings.Replace(certString, "-----END CERTIFICATE-----", "", -1)
-	certString = strings.Replace(certString, "-----BEGIN PUBLIC KEY-----", "", -1)
-	certString = strings.Replace(certString, "-----END PUBLIC KEY-----", "", -1)
-	certString = strings.Replace(certString, "\n", "", -1)
+	certString = strings.ReplaceAll(certString, "-----BEGIN CERTIFICATE-----", "")
+	certString = strings.ReplaceAll(certString, "-----END CERTIFICATE-----", "")
+	certString = strings.ReplaceAll(certString, "-----BEGIN PUBLIC KEY-----", "")
+	certString = strings.ReplaceAll(certString, "-----END PUBLIC KEY-----", "")
+	certString = strings.ReplaceAll(certString, "\n", "")
 	return certString
 }
 

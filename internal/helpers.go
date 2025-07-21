@@ -27,7 +27,7 @@ type SDKTime struct {
 
 // SDKDate a struct that parses/renders to/from json using only date information
 type SDKDate struct {
-	//Date date information
+	// Date date information
 	Date time.Time
 }
 
@@ -69,7 +69,7 @@ func tryParsingTimeWithValidFormatsForHeaders(data []byte, headerName string) (t
 	case "lastmodified", "date":
 		t, err = tryParsing(data, time.RFC3339Nano, time.RFC3339, time.RFC1123, rfc1123OptionalLeadingDigitsInDay, time.RFC850, time.ANSIC)
 		return
-	default: //By default we parse with RFC3339
+	default: // By default we parse with RFC3339
 		t, err = time.Parse(sdkTimeFormat, string(data))
 		return
 	}

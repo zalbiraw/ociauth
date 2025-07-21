@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -191,7 +190,7 @@ func valueFromPolymorphicJSON(content []byte, unmarshaler PolymorphicJSONUnmarsh
 
 func valueFromJSONBody(response *http.Response, value *reflect.Value, unmarshaler PolymorphicJSONUnmarshaler) (val interface{}, err error) {
 	var content []byte
-	content, err = ioutil.ReadAll(response.Body)
+	content, err = io.ReadAll(response.Body)
 	if err != nil {
 		return
 	}
@@ -219,7 +218,7 @@ func addFromBody(response *http.Response, value *reflect.Value, field reflect.St
 		value.Set(reflect.ValueOf(response.Body))
 		return
 	case "plain-text":
-		byteArr, e := ioutil.ReadAll(response.Body)
+		byteArr, e := io.ReadAll(response.Body)
 		if e != nil {
 			return e
 		}
