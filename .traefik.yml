@@ -1,12 +1,4 @@
-displayName: Demo Plugin
+displayName: OCI Instance Principal Auth
 type: middleware
-iconPath: .assets/icon.png
-
-import: github.com/traefik/plugindemo
-
-summary: '[Demo] Add Request Header'
-
-testData:
-  Headers:
-    X-Demo: test
-    X-URL: '{{URL}}'
+import: github.com/zalbiraw/ociinstanceprincipalauth
+summary: This plugin provides OCI Instance Principal authentication for Oracle Cloud Infrastructure services. No configuration required.
