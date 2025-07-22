@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ociauth
+  namespace: default
+  labels:
+    app: ociauth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ociauth
+  template:
+    metadata:
+      labels:
+        app: ociauth
+    spec:
+      containers:
+      - name: ociauth
+        image: zalbiraw/ociauth:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: OCI_REGION
+          value: "us-chicago-1"
+        - name: OCI_SERVICE_NAME
+          value: "generativeai"
+        - name: OCI_AUTH_TYPE
+          value: "instance_principal"
+        - name: PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"

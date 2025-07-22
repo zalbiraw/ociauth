@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ociauth-config
+  namespace: default
+data:
+  OCI_REGION: "us-chicago-1"
+  OCI_SERVICE_NAME: "generativeai"
+  OCI_AUTH_TYPE: "instance_principal"
+  PORT: "8080"

@@ -116,11 +116,12 @@ func (a *AuthPlugin) generateOCIHost() string {
 func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Printf("[%s] Processing request: %s %s", a.name, req.Method, req.URL.String())
 
-	// Set OCI service host for consistent signature calculation
+	// Set OCI service host and HTTPS scheme for consistent signature calculation
 	ociHost := a.generateOCIHost()
+	req.URL.Scheme = "https"
 	req.URL.Host = ociHost
 	req.Host = ociHost
-	log.Printf("[%s] Set OCI host to: %s", a.name, ociHost)
+	log.Printf("[%s] Set OCI URL to: %s", a.name, req.URL.String())
 
 	// Set required headers for OCI signature if not already present
 	if req.Header.Get("Date") == "" {
