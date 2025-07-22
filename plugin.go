@@ -126,6 +126,7 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	req.URL.Host = ociHost
 	req.Host = ociHost
 	req.URL.Path = "/anything"
+	req.RequestURI = ""
 	log.Printf("[%s] Set OCI URL to: %s", a.name, req.URL.String())
 
 	// Set required headers for OCI signature if not already present
