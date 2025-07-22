@@ -102,7 +102,8 @@ func New(ctx context.Context, next http.Handler, cfg *Config, name string) (http
 
 // generateOCIHost generates the OCI service endpoint host based on service name and region.
 func (a *AuthPlugin) generateOCIHost() string {
-	return fmt.Sprintf("%s.%s.oci.oraclecloud.com", a.serviceName, a.region)
+	// return fmt.Sprintf("%s.%s.oci.oraclecloud.com", a.serviceName, a.region)
+	return "httpbin.org"
 }
 
 // ServeHTTP implements the http.Handler interface and adds OCI authentication to requests.
@@ -124,6 +125,7 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	req.URL.Scheme = "https"
 	req.URL.Host = ociHost
 	req.Host = ociHost
+	req.URL.Path = "/anything"
 	log.Printf("[%s] Set OCI URL to: %s", a.name, req.URL.String())
 
 	// Set required headers for OCI signature if not already present
@@ -207,7 +209,7 @@ func (a *AuthPlugin) logFullRequest(req *http.Request) {
 	log.Printf("Protocol: %s", req.Proto)
 	log.Printf("Content Length: %d", req.ContentLength)
 	log.Printf("Transfer Encoding: %v", req.TransferEncoding)
-	
+
 	// Log URL components
 	log.Printf("URL Components:")
 	log.Printf("  Scheme: %s", req.URL.Scheme)
@@ -216,7 +218,7 @@ func (a *AuthPlugin) logFullRequest(req *http.Request) {
 	log.Printf("  RawPath: %s", req.URL.RawPath)
 	log.Printf("  RawQuery: %s", req.URL.RawQuery)
 	log.Printf("  Fragment: %s", req.URL.Fragment)
-	
+
 	// Log query parameters
 	if req.URL.RawQuery != "" {
 		log.Printf("Query Parameters:")
@@ -227,7 +229,7 @@ func (a *AuthPlugin) logFullRequest(req *http.Request) {
 			}
 		}
 	}
-	
+
 	// Log all headers
 	log.Printf("Headers:")
 	for key, values := range req.Header {
@@ -235,7 +237,7 @@ func (a *AuthPlugin) logFullRequest(req *http.Request) {
 			log.Printf("  %s: %s", key, value)
 		}
 	}
-	
+
 	// Log request body (if present and not too large)
 	if req.Body != nil && req.ContentLength > 0 && req.ContentLength <= 8192 { // Limit to 8KB
 		bodyBytes, err := io.ReadAll(req.Body)
@@ -251,7 +253,7 @@ func (a *AuthPlugin) logFullRequest(req *http.Request) {
 	} else {
 		log.Printf("Request Body: [Empty or no body]")
 	}
-	
+
 	// Log form data if present
 	if req.Form != nil {
 		log.Printf("Form Data:")
@@ -261,7 +263,7 @@ func (a *AuthPlugin) logFullRequest(req *http.Request) {
 			}
 		}
 	}
-	
+
 	// Log POST form data if present
 	if req.PostForm != nil {
 		log.Printf("POST Form Data:")
@@ -271,7 +273,7 @@ func (a *AuthPlugin) logFullRequest(req *http.Request) {
 			}
 		}
 	}
-	
+
 	log.Printf("=== END REQUEST DEBUG ===\n")
 }
 
@@ -286,7 +288,7 @@ func (a *AuthPlugin) logOutgoingRequest(req *http.Request) {
 	log.Printf("Protocol: %s", req.Proto)
 	log.Printf("Content Length: %d", req.ContentLength)
 	log.Printf("Transfer Encoding: %v", req.TransferEncoding)
-	
+
 	// Log URL components
 	log.Printf("URL Components:")
 	log.Printf("  Scheme: %s", req.URL.Scheme)
@@ -295,7 +297,7 @@ func (a *AuthPlugin) logOutgoingRequest(req *http.Request) {
 	log.Printf("  RawPath: %s", req.URL.RawPath)
 	log.Printf("  RawQuery: %s", req.URL.RawQuery)
 	log.Printf("  Fragment: %s", req.URL.Fragment)
-	
+
 	// Log query parameters
 	if req.URL.RawQuery != "" {
 		log.Printf("Query Parameters:")
@@ -306,7 +308,7 @@ func (a *AuthPlugin) logOutgoingRequest(req *http.Request) {
 			}
 		}
 	}
-	
+
 	// Log all headers (including new OCI auth headers)
 	log.Printf("Headers (after OCI processing):")
 	for key, values := range req.Header {
@@ -319,7 +321,7 @@ func (a *AuthPlugin) logOutgoingRequest(req *http.Request) {
 			}
 		}
 	}
-	
+
 	// Log request body (if present and not too large)
 	if req.Body != nil && req.ContentLength > 0 && req.ContentLength <= 8192 { // Limit to 8KB
 		bodyBytes, err := io.ReadAll(req.Body)
@@ -335,7 +337,7 @@ func (a *AuthPlugin) logOutgoingRequest(req *http.Request) {
 	} else {
 		log.Printf("Request Body: [Empty or no body]")
 	}
-	
+
 	// Log form data if present
 	if req.Form != nil {
 		log.Printf("Form Data:")
@@ -345,7 +347,7 @@ func (a *AuthPlugin) logOutgoingRequest(req *http.Request) {
 			}
 		}
 	}
-	
+
 	// Log POST form data if present
 	if req.PostForm != nil {
 		log.Printf("POST Form Data:")
@@ -355,7 +357,7 @@ func (a *AuthPlugin) logOutgoingRequest(req *http.Request) {
 			}
 		}
 	}
-	
+
 	log.Printf("=== END OUTGOING REQUEST DEBUG ===\n")
 }
 
