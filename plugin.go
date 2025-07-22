@@ -28,11 +28,11 @@ type Config struct {
 	// AuthType specifies the OCI authentication method to use.
 	// Currently only "instance_principal" is supported.
 	AuthType string `json:"authType,omitempty" yaml:"authType,omitempty"`
-	
+
 	// ServiceName specifies the OCI service to authenticate against.
 	// Currently only "generativeai" is supported.
 	ServiceName string `json:"serviceName,omitempty" yaml:"serviceName,omitempty"`
-	
+
 	// Region specifies the OCI region for the service endpoint.
 	// Example: "us-chicago-1", "us-ashburn-1", "eu-frankfurt-1"
 	Region string `json:"region,omitempty" yaml:"region,omitempty"`
@@ -83,7 +83,7 @@ func New(ctx context.Context, next http.Handler, cfg *Config, name string) (http
 		return nil, fmt.Errorf("region is required")
 	}
 
-	log.Printf("Initializing OCI Instance Principal Auth plugin %s with auth type: %s, service: %s, region: %s", 
+	log.Printf("Initializing OCI Instance Principal Auth plugin %s with auth type: %s, service: %s, region: %s",
 		name, cfg.AuthType, cfg.ServiceName, cfg.Region)
 
 	return &AuthPlugin{
@@ -120,7 +120,6 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	ociHost := a.generateOCIHost()
 	req.URL.Host = ociHost
 	req.Host = ociHost
-	req.Header.Set("Host", ociHost)
 	log.Printf("[%s] Set OCI host to: %s", a.name, ociHost)
 
 	// Set required headers for OCI signature if not already present
@@ -136,7 +135,6 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.ContentLength >= 0 {
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", req.ContentLength))
 	}
-
 
 	// Add OCI authentication headers
 	if err := a.signRequest(req); err != nil {
@@ -177,13 +175,11 @@ func (a *AuthPlugin) signRequest(req *http.Request) (err error) {
 		return fmt.Errorf("key provider is nil")
 	}
 
-
 	signer := internal.DefaultRequestSigner(keyProvider)
 	if signer == nil {
 		log.Printf("[%s] Signer is nil", a.name)
 		return fmt.Errorf("signer is nil")
 	}
-
 
 	if err := signer.Sign(req); err != nil {
 		log.Printf("[%s] Failed to sign request: %v", a.name, err)
