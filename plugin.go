@@ -16,11 +16,8 @@ package ociauth
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/zalbiraw/ociauth/internal"
@@ -118,14 +115,11 @@ func (a *AuthPlugin) generateOCIHost() string {
 //
 // For requests without authentication requirements, they are passed through unchanged.
 func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	a.logFullRequest(req)
-
 	// Set OCI service host and HTTPS scheme for consistent signature calculation
 	ociHost := a.generateOCIHost()
 	req.URL.Scheme = "https"
 	req.URL.Host = ociHost
 	req.Host = ociHost
-	req.URL.Path = "/anything"
 	req.RequestURI = ""
 	log.Printf("[%s] Set OCI URL to: %s", a.name, req.URL.String())
 
@@ -149,11 +143,6 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, fmt.Sprintf("OCI authentication failed: %v", err), http.StatusInternalServerError)
 		return
 	}
-
-	log.Printf("[%s] OCI authentication successful", a.name)
-
-	// Log the outgoing request after OCI processing
-	a.logOutgoingRequest(req)
 
 	// Forward the authenticated request
 	a.next.ServeHTTP(rw, req)
@@ -197,169 +186,6 @@ func (a *AuthPlugin) signRequest(req *http.Request) (err error) {
 	}
 
 	return nil
-}
-
-// logFullRequest logs comprehensive request information for debugging
-func (a *AuthPlugin) logFullRequest(req *http.Request) {
-	log.Printf("\n=== FULL REQUEST DEBUG ===")
-	log.Printf("Plugin: [%s]", a.name)
-	log.Printf("Method: %s", req.Method)
-	log.Printf("URL: %s", req.URL.String())
-	log.Printf("Host: %s", req.Host)
-	log.Printf("Remote Address: %s", req.RemoteAddr)
-	log.Printf("Protocol: %s", req.Proto)
-	log.Printf("Content Length: %d", req.ContentLength)
-	log.Printf("Transfer Encoding: %v", req.TransferEncoding)
-
-	// Log URL components
-	log.Printf("URL Components:")
-	log.Printf("  Scheme: %s", req.URL.Scheme)
-	log.Printf("  Host: %s", req.URL.Host)
-	log.Printf("  Path: %s", req.URL.Path)
-	log.Printf("  RawPath: %s", req.URL.RawPath)
-	log.Printf("  RawQuery: %s", req.URL.RawQuery)
-	log.Printf("  Fragment: %s", req.URL.Fragment)
-
-	// Log query parameters
-	if req.URL.RawQuery != "" {
-		log.Printf("Query Parameters:")
-		queryParams, _ := url.ParseQuery(req.URL.RawQuery)
-		for key, values := range queryParams {
-			for _, value := range values {
-				log.Printf("  %s: %s", key, value)
-			}
-		}
-	}
-
-	// Log all headers
-	log.Printf("Headers:")
-	for key, values := range req.Header {
-		for _, value := range values {
-			log.Printf("  %s: %s", key, value)
-		}
-	}
-
-	// Log request body (if present and not too large)
-	if req.Body != nil && req.ContentLength > 0 && req.ContentLength <= 8192 { // Limit to 8KB
-		bodyBytes, err := io.ReadAll(req.Body)
-		if err != nil {
-			log.Printf("Request Body: [Error reading body: %v]", err)
-		} else {
-			// Replace the body with a new reader
-			req.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
-			log.Printf("Request Body: %s", string(bodyBytes))
-		}
-	} else if req.ContentLength > 8192 {
-		log.Printf("Request Body: [Body too large (%d bytes), not logged]", req.ContentLength)
-	} else {
-		log.Printf("Request Body: [Empty or no body]")
-	}
-
-	// Log form data if present
-	if req.Form != nil {
-		log.Printf("Form Data:")
-		for key, values := range req.Form {
-			for _, value := range values {
-				log.Printf("  %s: %s", key, value)
-			}
-		}
-	}
-
-	// Log POST form data if present
-	if req.PostForm != nil {
-		log.Printf("POST Form Data:")
-		for key, values := range req.PostForm {
-			for _, value := range values {
-				log.Printf("  %s: %s", key, value)
-			}
-		}
-	}
-
-	log.Printf("=== END REQUEST DEBUG ===\n")
-}
-
-// logOutgoingRequest logs comprehensive outgoing request information after OCI processing
-func (a *AuthPlugin) logOutgoingRequest(req *http.Request) {
-	log.Printf("\n=== OUTGOING REQUEST DEBUG ===")
-	log.Printf("Plugin: [%s]", a.name)
-	log.Printf("Method: %s", req.Method)
-	log.Printf("URL: %s", req.URL.String())
-	log.Printf("Host: %s", req.Host)
-	log.Printf("Remote Address: %s", req.RemoteAddr)
-	log.Printf("Protocol: %s", req.Proto)
-	log.Printf("Content Length: %d", req.ContentLength)
-	log.Printf("Transfer Encoding: %v", req.TransferEncoding)
-
-	// Log URL components
-	log.Printf("URL Components:")
-	log.Printf("  Scheme: %s", req.URL.Scheme)
-	log.Printf("  Host: %s", req.URL.Host)
-	log.Printf("  Path: %s", req.URL.Path)
-	log.Printf("  RawPath: %s", req.URL.RawPath)
-	log.Printf("  RawQuery: %s", req.URL.RawQuery)
-	log.Printf("  Fragment: %s", req.URL.Fragment)
-
-	// Log query parameters
-	if req.URL.RawQuery != "" {
-		log.Printf("Query Parameters:")
-		queryParams, _ := url.ParseQuery(req.URL.RawQuery)
-		for key, values := range queryParams {
-			for _, value := range values {
-				log.Printf("  %s: %s", key, value)
-			}
-		}
-	}
-
-	// Log all headers (including new OCI auth headers)
-	log.Printf("Headers (after OCI processing):")
-	for key, values := range req.Header {
-		for _, value := range values {
-			// Mask sensitive auth headers for security
-			if strings.Contains(strings.ToLower(key), "authorization") {
-				log.Printf("  %s: [MASKED - Length: %d]", key, len(value))
-			} else {
-				log.Printf("  %s: %s", key, value)
-			}
-		}
-	}
-
-	// Log request body (if present and not too large)
-	if req.Body != nil && req.ContentLength > 0 && req.ContentLength <= 8192 { // Limit to 8KB
-		bodyBytes, err := io.ReadAll(req.Body)
-		if err != nil {
-			log.Printf("Request Body: [Error reading body: %v]", err)
-		} else {
-			// Replace the body with a new reader
-			req.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
-			log.Printf("Request Body: %s", string(bodyBytes))
-		}
-	} else if req.ContentLength > 8192 {
-		log.Printf("Request Body: [Body too large (%d bytes), not logged]", req.ContentLength)
-	} else {
-		log.Printf("Request Body: [Empty or no body]")
-	}
-
-	// Log form data if present
-	if req.Form != nil {
-		log.Printf("Form Data:")
-		for key, values := range req.Form {
-			for _, value := range values {
-				log.Printf("  %s: %s", key, value)
-			}
-		}
-	}
-
-	// Log POST form data if present
-	if req.PostForm != nil {
-		log.Printf("POST Form Data:")
-		for key, values := range req.PostForm {
-			for _, value := range values {
-				log.Printf("  %s: %s", key, value)
-			}
-		}
-	}
-
-	log.Printf("=== END OUTGOING REQUEST DEBUG ===\n")
 }
 
 // CreateConfig creates the default plugin configuration.
