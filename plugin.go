@@ -16,6 +16,7 @@ package ociauth
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -40,9 +41,8 @@ type Config struct {
 
 // AuthPlugin represents the main plugin instance that handles OCI authentication.
 type AuthPlugin struct {
-	next        http.Handler // Next handler in the middleware chain
 	name        string       // Plugin instance name
-	client      *http.Client // HTTP client for OCI metadata service
+	client      *http.Client // HTTP client for making authenticated requests
 	serviceName string       // OCI service name
 	region      string       // OCI region
 }
@@ -52,12 +52,11 @@ type AuthPlugin struct {
 //
 // Parameters:
 //   - ctx: Context for the plugin initialization
-//   - next: Next HTTP handler in the middleware chain
 //   - cfg: Plugin configuration
 //   - name: Name of the plugin instance
 //
 // Returns the configured plugin handler.
-func New(ctx context.Context, next http.Handler, cfg *Config, name string) (http.Handler, error) {
+func New(ctx context.Context, cfg *Config, name string) (http.Handler, error) {
 	// Set default auth type if not specified
 	if cfg.AuthType == "" {
 		cfg.AuthType = "instance_principal"
@@ -87,12 +86,11 @@ func New(ctx context.Context, next http.Handler, cfg *Config, name string) (http
 		name, cfg.AuthType, cfg.ServiceName, cfg.Region)
 
 	return &AuthPlugin{
-		next:        next,
 		name:        name,
 		serviceName: cfg.ServiceName,
 		region:      cfg.Region,
 		client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 30 * time.Second,
 		},
 	}, nil
 }
@@ -143,9 +141,47 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	req.RequestURI = req.URL.RequestURI()
-	// Forward the authenticated request
-	a.next.ServeHTTP(rw, req)
+	// Clear RequestURI to allow client.Do() to work properly
+	req.RequestURI = ""
+
+	// Make the authenticated request to OCI
+	resp, err := a.client.Do(req)
+	if err != nil {
+		log.Printf("[%s] OCI request failed: %v", a.name, err)
+		http.Error(rw, fmt.Sprintf("OCI request failed: %v", err), http.StatusBadGateway)
+		return
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Printf("[%s] Failed to close response body: %v", a.name, closeErr)
+		}
+	}()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[%s] Failed to read OCI response: %v", a.name, err)
+		http.Error(rw, "Failed to read OCI response", http.StatusInternalServerError)
+		return
+	}
+
+	// Log the OCI response
+	log.Printf("[%s] OCI Response Status: %d", a.name, resp.StatusCode)
+	log.Printf("[%s] OCI Response Headers: %v", a.name, resp.Header)
+	log.Printf("[%s] OCI Response Body: %s", a.name, string(body))
+
+	// Forward response headers to client
+	for key, values := range resp.Header {
+		for _, value := range values {
+			rw.Header().Add(key, value)
+		}
+	}
+
+	// Write response status and body
+	rw.WriteHeader(resp.StatusCode)
+	if _, err := rw.Write(body); err != nil {
+		log.Printf("[%s] Failed to write response body: %v", a.name, err)
+	}
 }
 
 // signRequest adds OCI authentication headers to the given HTTP request.

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -39,75 +38,8 @@ func main() {
 		Region:      region,
 	}
 
-	// Create a backend handler that forwards to debug proxy service
-	backendHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Backend received request: %s %s", r.Method, r.URL.String())
-
-		// Create HTTP client for debug proxy call
-		client := &http.Client{}
-
-		// Target the debug proxy service in Kubernetes
-		debugProxyURL := "http://debug-proxy-service.default.svc.cluster.local"
-		
-		// Create the actual request to debug proxy
-		fullURL := debugProxyURL + r.URL.Path
-		if r.URL.RawQuery != "" {
-			fullURL += "?" + r.URL.RawQuery
-		}
-		ociReq, err := http.NewRequest(r.Method, fullURL, r.Body)
-		if err != nil {
-			log.Printf("Failed to create debug proxy request: %v", err)
-			http.Error(w, "Failed to create request", http.StatusInternalServerError)
-			return
-		}
-
-		// Copy headers from authenticated request
-		for key, values := range r.Header {
-			for _, value := range values {
-				ociReq.Header.Add(key, value)
-			}
-		}
-
-		// Make the actual call to debug proxy
-		resp, err := client.Do(ociReq)
-		if err != nil {
-			log.Printf("Debug proxy call failed: %v", err)
-			http.Error(w, "Debug proxy call failed", http.StatusInternalServerError)
-			return
-		}
-		defer func() {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				log.Printf("Failed to close response body: %v", closeErr)
-			}
-		}()
-
-		// Read response body
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Printf("Failed to read OCI response: %v", err)
-			http.Error(w, "Failed to read response", http.StatusInternalServerError)
-			return
-		}
-
-		// Log the actual debug proxy response
-		log.Printf("Debug Proxy Response Status: %d", resp.StatusCode)
-		log.Printf("Debug Proxy Response Headers: %v", resp.Header)
-		log.Printf("Debug Proxy Response Body: %s", string(body))
-
-		// Forward response to client
-		for key, values := range resp.Header {
-			for _, value := range values {
-				w.Header().Add(key, value)
-			}
-		}
-		w.WriteHeader(resp.StatusCode)
-		if _, err := w.Write(body); err != nil {
-			log.Printf("Failed to write response body: %v", err)
-		}
-	})
-
-	// Create the OCI auth plugin
-	authHandler, err := ociauth.New(context.Background(), backendHandler, config, "ociauth-server")
+	// Create the OCI auth plugin (no backend handler needed)
+	authHandler, err := ociauth.New(context.Background(), config, "ociauth-server")
 	if err != nil {
 		log.Fatalf("Failed to create OCI auth plugin: %v", err)
 	}
