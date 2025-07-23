@@ -38,8 +38,19 @@ func main() {
 		Region:      region,
 	}
 
-	// Create the OCI auth plugin (next handler is ignored)
-	authHandler, err := ociauth.New(context.Background(), nil, config, "ociauth-server")
+	// Create a backend handler for non-GET requests
+	backendHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Backend received %s request: %s", r.Method, r.URL.String())
+		
+		// For non-GET requests, you can add custom logic here
+		// For now, just return a simple response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"message": "Non-GET request processed", "method": "` + r.Method + `"}`))
+	})
+
+	// Create the OCI auth plugin with backend handler for non-GET requests
+	authHandler, err := ociauth.New(context.Background(), backendHandler, config, "ociauth-server")
 	if err != nil {
 		log.Fatalf("Failed to create OCI auth plugin: %v", err)
 	}

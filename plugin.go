@@ -41,6 +41,7 @@ type Config struct {
 
 // AuthPlugin represents the main plugin instance that handles OCI authentication.
 type AuthPlugin struct {
+	next        http.Handler // Next handler in the middleware chain (for non-GET requests)
 	name        string       // Plugin instance name
 	client      *http.Client // HTTP client for making authenticated requests
 	serviceName string       // OCI service name
@@ -87,6 +88,7 @@ func New(ctx context.Context, next http.Handler, cfg *Config, name string) (http
 		name, cfg.AuthType, cfg.ServiceName, cfg.Region)
 
 	return &AuthPlugin{
+		next:        next,
 		name:        name,
 		serviceName: cfg.ServiceName,
 		region:      cfg.Region,
@@ -142,46 +144,63 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Clear RequestURI to allow client.Do() to work properly
-	req.RequestURI = ""
+	// Use different approaches based on HTTP method
+	if req.Method == "GET" {
+		// For GET requests, use client.Do() approach
+		req.RequestURI = ""
 
-	// Make the authenticated request to OCI
-	resp, err := a.client.Do(req)
-	if err != nil {
-		log.Printf("[%s] OCI request failed: %v", a.name, err)
-		http.Error(rw, fmt.Sprintf("OCI request failed: %v", err), http.StatusBadGateway)
-		return
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			log.Printf("[%s] Failed to close response body: %v", a.name, closeErr)
+		// Make the authenticated request to OCI
+		resp, err := a.client.Do(req)
+		if err != nil {
+			log.Printf("[%s] OCI request failed: %v", a.name, err)
+			http.Error(rw, fmt.Sprintf("OCI request failed: %v", err), http.StatusBadGateway)
+			return
 		}
-	}()
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				log.Printf("[%s] Failed to close response body: %v", a.name, closeErr)
+			}
+		}()
 
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("[%s] Failed to read OCI response: %v", a.name, err)
-		http.Error(rw, "Failed to read OCI response", http.StatusInternalServerError)
-		return
-	}
-
-	// Log the OCI response
-	log.Printf("[%s] OCI Response Status: %d", a.name, resp.StatusCode)
-	log.Printf("[%s] OCI Response Headers: %v", a.name, resp.Header)
-	log.Printf("[%s] OCI Response Body: %s", a.name, string(body))
-
-	// Forward response headers to client
-	for key, values := range resp.Header {
-		for _, value := range values {
-			rw.Header().Add(key, value)
+		// Read response body
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("[%s] Failed to read OCI response: %v", a.name, err)
+			http.Error(rw, "Failed to read OCI response", http.StatusInternalServerError)
+			return
 		}
-	}
 
-	// Write response status and body
-	rw.WriteHeader(resp.StatusCode)
-	if _, err := rw.Write(body); err != nil {
-		log.Printf("[%s] Failed to write response body: %v", a.name, err)
+		// Log the OCI response
+		log.Printf("[%s] OCI Response Status: %d", a.name, resp.StatusCode)
+		log.Printf("[%s] OCI Response Headers: %v", a.name, resp.Header)
+		log.Printf("[%s] OCI Response Body: %s", a.name, string(body))
+
+		// Forward response headers to client
+		for key, values := range resp.Header {
+			for _, value := range values {
+				rw.Header().Add(key, value)
+			}
+		}
+
+		// Write response status and body
+		rw.WriteHeader(resp.StatusCode)
+		if _, err := rw.Write(body); err != nil {
+			log.Printf("[%s] Failed to write response body: %v", a.name, err)
+		}
+	} else {
+		// For non-GET requests (POST, PUT, PATCH, DELETE, etc.), use original next handler approach
+		log.Printf("[%s] Using next handler for %s request", a.name, req.Method)
+		
+		// Set RequestURI for next handler
+		req.RequestURI = req.URL.RequestURI()
+		
+		// Forward the authenticated request to next handler
+		if a.next != nil {
+			a.next.ServeHTTP(rw, req)
+		} else {
+			log.Printf("[%s] No next handler available for %s request", a.name, req.Method)
+			http.Error(rw, "No handler available for this request method", http.StatusInternalServerError)
+		}
 	}
 }
 
