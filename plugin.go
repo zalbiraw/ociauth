@@ -121,7 +121,7 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	req.URL.Host = ociHost
 	req.URL.Scheme = "https"
 
-	log.Printf("[%s] Set OCI URL to: %s", a.name, req.URL.String())
+	// URL set to OCI service endpoint
 
 	// Set required headers for OCI signature if not already present
 	if req.Header.Get("Date") == "" {
@@ -218,10 +218,7 @@ func (a *AuthPlugin) handleGetRequest(rw http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	// Log the OCI response
-	log.Printf("[%s] OCI Response Status: %d", a.name, resp.StatusCode)
-	log.Printf("[%s] OCI Response Headers: %v", a.name, resp.Header)
-	log.Printf("[%s] OCI Response Body: %s", a.name, string(body))
+	// Response received successfully
 
 	// Forward response headers to client
 	for key, values := range resp.Header {
@@ -240,7 +237,7 @@ func (a *AuthPlugin) handleGetRequest(rw http.ResponseWriter, req *http.Request)
 // handleNonGetRequest handles non-GET requests using next handler approach
 func (a *AuthPlugin) handleNonGetRequest(rw http.ResponseWriter, req *http.Request) {
 	// For non-GET requests (POST, PUT, PATCH, DELETE, etc.), use original next handler approach
-	log.Printf("[%s] Using next handler for %s request", a.name, req.Method)
+	// Forwarding to next handler
 
 	// Set RequestURI for next handler
 	req.RequestURI = req.URL.RequestURI()
@@ -249,7 +246,7 @@ func (a *AuthPlugin) handleNonGetRequest(rw http.ResponseWriter, req *http.Reque
 	if a.next != nil {
 		a.next.ServeHTTP(rw, req)
 	} else {
-		log.Printf("[%s] No next handler available for %s request", a.name, req.Method)
+		// No next handler configured
 		http.Error(rw, "No handler available for this request method", http.StatusInternalServerError)
 	}
 }
