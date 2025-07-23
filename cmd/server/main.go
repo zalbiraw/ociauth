@@ -38,8 +38,8 @@ func main() {
 		Region:      region,
 	}
 
-	// Create the OCI auth plugin (no backend handler needed)
-	authHandler, err := ociauth.New(context.Background(), config, "ociauth-server")
+	// Create the OCI auth plugin (next handler is ignored)
+	authHandler, err := ociauth.New(context.Background(), nil, config, "ociauth-server")
 	if err != nil {
 		log.Fatalf("Failed to create OCI auth plugin: %v", err)
 	}

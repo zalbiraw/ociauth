@@ -52,11 +52,12 @@ type AuthPlugin struct {
 //
 // Parameters:
 //   - ctx: Context for the plugin initialization
+//   - next: Next HTTP handler in the middleware chain (ignored - plugin makes direct requests)
 //   - cfg: Plugin configuration
 //   - name: Name of the plugin instance
 //
 // Returns the configured plugin handler.
-func New(ctx context.Context, cfg *Config, name string) (http.Handler, error) {
+func New(ctx context.Context, next http.Handler, cfg *Config, name string) (http.Handler, error) {
 	// Set default auth type if not specified
 	if cfg.AuthType == "" {
 		cfg.AuthType = "instance_principal"
