@@ -41,12 +41,14 @@ func main() {
 	// Create a backend handler for non-GET requests
 	backendHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Backend received %s request: %s", r.Method, r.URL.String())
-		
+
 		// For non-GET requests, you can add custom logic here
 		// For now, just return a simple response
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "Non-GET request processed", "method": "` + r.Method + `"}`))
+		if _, err := w.Write([]byte(`{"message": "Non-GET request processed", "method": "` + r.Method + `"}`)); err != nil {
+			log.Printf("Failed to write response: %v", err)
+		}
 	})
 
 	// Create the OCI auth plugin with backend handler for non-GET requests

@@ -145,62 +145,10 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Use different approaches based on HTTP method
-	if req.Method == "GET" {
-		// For GET requests, use client.Do() approach
-		req.RequestURI = ""
-
-		// Make the authenticated request to OCI
-		resp, err := a.client.Do(req)
-		if err != nil {
-			log.Printf("[%s] OCI request failed: %v", a.name, err)
-			http.Error(rw, fmt.Sprintf("OCI request failed: %v", err), http.StatusBadGateway)
-			return
-		}
-		defer func() {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				log.Printf("[%s] Failed to close response body: %v", a.name, closeErr)
-			}
-		}()
-
-		// Read response body
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Printf("[%s] Failed to read OCI response: %v", a.name, err)
-			http.Error(rw, "Failed to read OCI response", http.StatusInternalServerError)
-			return
-		}
-
-		// Log the OCI response
-		log.Printf("[%s] OCI Response Status: %d", a.name, resp.StatusCode)
-		log.Printf("[%s] OCI Response Headers: %v", a.name, resp.Header)
-		log.Printf("[%s] OCI Response Body: %s", a.name, string(body))
-
-		// Forward response headers to client
-		for key, values := range resp.Header {
-			for _, value := range values {
-				rw.Header().Add(key, value)
-			}
-		}
-
-		// Write response status and body
-		rw.WriteHeader(resp.StatusCode)
-		if _, err := rw.Write(body); err != nil {
-			log.Printf("[%s] Failed to write response body: %v", a.name, err)
-		}
+	if req.Method == http.MethodGet {
+		a.handleGetRequest(rw, req)
 	} else {
-		// For non-GET requests (POST, PUT, PATCH, DELETE, etc.), use original next handler approach
-		log.Printf("[%s] Using next handler for %s request", a.name, req.Method)
-		
-		// Set RequestURI for next handler
-		req.RequestURI = req.URL.RequestURI()
-		
-		// Forward the authenticated request to next handler
-		if a.next != nil {
-			a.next.ServeHTTP(rw, req)
-		} else {
-			log.Printf("[%s] No next handler available for %s request", a.name, req.Method)
-			http.Error(rw, "No handler available for this request method", http.StatusInternalServerError)
-		}
+		a.handleNonGetRequest(rw, req)
 	}
 }
 
@@ -242,6 +190,68 @@ func (a *AuthPlugin) signRequest(req *http.Request) (err error) {
 	}
 
 	return nil
+}
+
+// handleGetRequest handles GET requests using client.Do() approach
+func (a *AuthPlugin) handleGetRequest(rw http.ResponseWriter, req *http.Request) {
+	// For GET requests, use client.Do() approach
+	req.RequestURI = ""
+
+	// Make the authenticated request to OCI
+	resp, err := a.client.Do(req)
+	if err != nil {
+		log.Printf("[%s] OCI request failed: %v", a.name, err)
+		http.Error(rw, fmt.Sprintf("OCI request failed: %v", err), http.StatusBadGateway)
+		return
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Printf("[%s] Failed to close response body: %v", a.name, closeErr)
+		}
+	}()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[%s] Failed to read OCI response: %v", a.name, err)
+		http.Error(rw, "Failed to read OCI response", http.StatusInternalServerError)
+		return
+	}
+
+	// Log the OCI response
+	log.Printf("[%s] OCI Response Status: %d", a.name, resp.StatusCode)
+	log.Printf("[%s] OCI Response Headers: %v", a.name, resp.Header)
+	log.Printf("[%s] OCI Response Body: %s", a.name, string(body))
+
+	// Forward response headers to client
+	for key, values := range resp.Header {
+		for _, value := range values {
+			rw.Header().Add(key, value)
+		}
+	}
+
+	// Write response status and body
+	rw.WriteHeader(resp.StatusCode)
+	if _, err := rw.Write(body); err != nil {
+		log.Printf("[%s] Failed to write response body: %v", a.name, err)
+	}
+}
+
+// handleNonGetRequest handles non-GET requests using next handler approach
+func (a *AuthPlugin) handleNonGetRequest(rw http.ResponseWriter, req *http.Request) {
+	// For non-GET requests (POST, PUT, PATCH, DELETE, etc.), use original next handler approach
+	log.Printf("[%s] Using next handler for %s request", a.name, req.Method)
+
+	// Set RequestURI for next handler
+	req.RequestURI = req.URL.RequestURI()
+
+	// Forward the authenticated request to next handler
+	if a.next != nil {
+		a.next.ServeHTTP(rw, req)
+	} else {
+		log.Printf("[%s] No next handler available for %s request", a.name, req.Method)
+		http.Error(rw, "No handler available for this request method", http.StatusInternalServerError)
+	}
 }
 
 // CreateConfig creates the default plugin configuration.
