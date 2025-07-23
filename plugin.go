@@ -99,8 +99,7 @@ func New(ctx context.Context, next http.Handler, cfg *Config, name string) (http
 
 // generateOCIHost generates the OCI service endpoint host based on service name and region.
 func (a *AuthPlugin) generateOCIHost() string {
-	// return fmt.Sprintf("%s.%s.oci.oraclecloud.com", a.serviceName, a.region)
-	return "httpbin.org"
+	return fmt.Sprintf("%s.%s.oci.oraclecloud.com", a.serviceName, a.region)
 }
 
 // ServeHTTP implements the http.Handler interface and adds OCI authentication to requests.
