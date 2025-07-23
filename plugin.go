@@ -119,9 +119,6 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	req.Host = ociHost
 	req.URL.Host = ociHost
 	req.URL.Scheme = "https"
-	req.URL.Path = "/20231130/models"
-	req.URL.RawPath = "/20231130/models"
-	req.URL.RawQuery = "compartmentId=ocid1.tenancy.oc1..aaaaaaaaplxlvk44j6w2y73vg256zndweeqvow3jygnk2aufbmco7jloaptq&capability=CHAT"
 
 	log.Printf("[%s] Set OCI URL to: %s", a.name, req.URL.String())
 
