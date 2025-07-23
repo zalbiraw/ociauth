@@ -139,7 +139,7 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	// Add OCI authentication headers
 	if err := a.signRequest(req); err != nil {
-		log.Printf("[%s] OCI auth failed: %v", err)
+		log.Printf("[%s] OCI auth failed: %v", a.name, err)
 		http.Error(rw, fmt.Sprintf("OCI authentication failed: %v", err), http.StatusInternalServerError)
 		return
 	}
