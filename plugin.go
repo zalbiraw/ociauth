@@ -116,10 +116,13 @@ func (a *AuthPlugin) generateOCIHost() string {
 func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// Set OCI service host and HTTPS scheme for consistent signature calculation
 	ociHost := a.generateOCIHost()
-	req.URL.Scheme = "https"
-	req.URL.Host = ociHost
 	req.Host = ociHost
-	req.RequestURI = ""
+	req.URL.Host = ociHost
+	req.URL.Scheme = "https"
+	req.URL.Path = "/20231130/models"
+	req.URL.RawPath = "/20231130/models"
+	req.URL.RawQuery = "compartmentId=ocid1.tenancy.oc1..aaaaaaaaplxlvk44j6w2y73vg256zndweeqvow3jygnk2aufbmco7jloaptq&capability=CHAT"
+
 	log.Printf("[%s] Set OCI URL to: %s", a.name, req.URL.String())
 
 	// Set required headers for OCI signature if not already present
@@ -143,6 +146,7 @@ func (a *AuthPlugin) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	req.RequestURI = req.URL.RequestURI()
 	// Forward the authenticated request
 	a.next.ServeHTTP(rw, req)
 }

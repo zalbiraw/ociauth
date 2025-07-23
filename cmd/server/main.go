@@ -39,17 +39,24 @@ func main() {
 		Region:      region,
 	}
 
-	// Create a backend handler that forwards to actual OCI API and logs responses
+	// Create a backend handler that forwards to debug proxy service
 	backendHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Backend received request: %s %s", r.Method, r.URL.String())
 
-		// Create HTTP client for actual OCI call
+		// Create HTTP client for debug proxy call
 		client := &http.Client{}
 
-		// Create the actual request to OCI
-		ociReq, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
+		// Target the debug proxy service in Kubernetes
+		debugProxyURL := "http://debug-proxy-service.default.svc.cluster.local"
+		
+		// Create the actual request to debug proxy
+		fullURL := debugProxyURL + r.URL.Path
+		if r.URL.RawQuery != "" {
+			fullURL += "?" + r.URL.RawQuery
+		}
+		ociReq, err := http.NewRequest(r.Method, fullURL, r.Body)
 		if err != nil {
-			log.Printf("Failed to create OCI request: %v", err)
+			log.Printf("Failed to create debug proxy request: %v", err)
 			http.Error(w, "Failed to create request", http.StatusInternalServerError)
 			return
 		}
@@ -61,11 +68,11 @@ func main() {
 			}
 		}
 
-		// Make the actual call to OCI
+		// Make the actual call to debug proxy
 		resp, err := client.Do(ociReq)
 		if err != nil {
-			log.Printf("OCI API call failed: %v", err)
-			http.Error(w, "OCI API call failed", http.StatusInternalServerError)
+			log.Printf("Debug proxy call failed: %v", err)
+			http.Error(w, "Debug proxy call failed", http.StatusInternalServerError)
 			return
 		}
 		defer func() {
@@ -82,10 +89,10 @@ func main() {
 			return
 		}
 
-		// Log the actual OCI API response
-		log.Printf("OCI API Response Status: %d", resp.StatusCode)
-		log.Printf("OCI API Response Headers: %v", resp.Header)
-		log.Printf("OCI API Response Body: %s", string(body))
+		// Log the actual debug proxy response
+		log.Printf("Debug Proxy Response Status: %d", resp.StatusCode)
+		log.Printf("Debug Proxy Response Headers: %v", resp.Header)
+		log.Printf("Debug Proxy Response Body: %s", string(body))
 
 		// Forward response to client
 		for key, values := range resp.Header {
